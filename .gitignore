@@ -1,0 +1,27 @@
+# Python cache and local environments
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+
+# Jupyter temporary files
+.ipynb_checkpoints/
+
+# Raw dataset: keep documentation and the directory placeholder
+new_project/data/raw/*
+!new_project/data/raw/.gitkeep
+!new_project/data/raw/README 2024.txt
+
+# Generated data, trained models and experiment reports
+new_project/data/processed/*
+!new_project/data/processed/.gitkeep
+new_project/models/*
+!new_project/models/.gitkeep
+new_project/reports/*
+!new_project/reports/.gitkeep
+
+# Local configuration and experiment outputs
+.env
+*.log

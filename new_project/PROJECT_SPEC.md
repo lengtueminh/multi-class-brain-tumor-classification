@@ -4,7 +4,7 @@
 
 U não là bệnh lý nguy hiểm, trong đó việc xác định đúng loại u có ý nghĩa quan trọng đối với chẩn đoán và điều trị. MRI là phương pháp hình ảnh phổ biến để quan sát não, nhưng các lớp `glioma`, `meningioma` và `pituitary tumor` có thể có đặc điểm hình thái tương tự nhau. Dự án xây dựng các mô hình Computer Vision để tự động phân loại ảnh MRI thành ba lớp trên.
 
-CNN có khả năng tự học các đặc trưng từ ảnh, từ cạnh và texture ở các lớp đầu đến hình dạng và vùng tổn thương ở các lớp sâu. Trong phạm vi hai tuần, dự án tập trung vào ba model cốt lõi: CNN cơ bản, CNN có kiến trúc tuần tự kết hợp song song, và EfficientNet sử dụng transfer learning/fine-tuning.
+CNN có khả năng tự học các đặc trưng từ ảnh, từ cạnh và texture ở các lớp đầu đến hình dạng và vùng tổn thương ở các lớp sâu. Dự án được triển khai theo đúng năm bước của đề bài: tiền xử lý dữ liệu, xây dựng CNN đơn giản, xây dựng CNN phức tạp, xây dựng mô hình transfer learning/fine-tuning và đánh giá so sánh.
 
 ## 2. Bài toán
 
@@ -47,17 +47,19 @@ Project sử dụng Figshare Brain Tumor Dataset:
 
 Phân chia dữ liệu cần được thực hiện trước augmentation. Chỉ tập training được augmentation; validation và test giữ nguyên để đánh giá công bằng.
 
-### 3.2. Pipeline tiền xử lý
+### 3.2. Pipeline tiền xử lý (Bước 1)
 
-Ảnh MRI gốc --> Crop brain contour--> Chia train / validation / test --> Augmentation chỉ trên train --> Resize 224x224x3 --> Label encoding và one-hot encoding --> Đưa vào ba model  
+Ảnh MRI gốc --> Kiểm tra và làm sạch --> Crop brain contour --> Chia train / validation / test --> Augmentation chỉ trên train --> Resize 224x224x3 --> Normalize --> Label encoding và one-hot encoding --> Đưa vào ba kiến trúc model
 
-Các bước:
+Các bước thực hiện:
 
-1. Crop vùng não bằng threshold, erosion, dilation và contour lớn nhất.
-2. Chia dữ liệu theo class với random seed cố định.
-3. Augmentation trên tập train bằng rotation, translation và flip.
-4. Resize toàn bộ ảnh về `224 x 224 x 3`.
-5. Mã hóa nhãn thành vector one-hot có kích thước 3.
+1. **Làm sạch dữ liệu:** đọc ảnh hợp lệ, loại bỏ file hỏng/trùng lặp nếu có, kiểm tra nhãn, kích thước và số lượng ảnh ở từng class.
+2. **Tách vùng cần thiết:** crop vùng não bằng threshold, erosion, dilation và contour lớn nhất; không sử dụng thông tin của validation/test để xây dựng quy tắc xử lý.
+3. **Chia dữ liệu:** chia theo class thành train/validation/test với random seed cố định và giữ nguyên test set trước khi augmentation.
+4. **Augmentation:** chỉ áp dụng cho tập train bằng các biến đổi hợp lý với ảnh MRI như rotation nhỏ, translation, zoom/shift và flip nếu phù hợp; không augmentation validation/test.
+5. **Resize:** đưa toàn bộ ảnh về `224 x 224 x 3`. Ảnh grayscale được chuyển thành ba channel để tương thích với các mô hình.
+6. **Normalize:** chuyển pixel về `float32` và chuẩn hóa về `[0,1]` hoặc dùng preprocessing tương ứng với EfficientNet; phải dùng cùng quy ước trong train, validation, test và inference.
+7. **Mã hóa nhãn:** dùng mapping cố định `0=glioma`, `1=meningioma`, `2=pituitary tumor`, sau đó mã hóa one-hot khi dùng categorical cross-entropy.
 
 Dữ liệu sau tiền xử lý có dạng:
 
@@ -66,11 +68,11 @@ X: (batch_size, 224, 224, 3)
 y: (batch_size, 3)
 ```
 
-## 4. Ba model cần xây dựng
+## 4. Thiết kế các mô hình (Bước 2, 3 và 4)
 
-### 4.1. Model 1: CNN đơn giản
+### 4.1. Bước 2 — Model 1: CNN đơn giản
 
-Model 1 là baseline được huấn luyện từ đầu, không dùng pretrained weights.
+Thiết kế một CNN đơn giản, huấn luyện từ đầu và không dùng pretrained weights. Model phải có đầy đủ convolutional layer, pooling layer và fully connected layer để làm baseline.
 
 ```mermaid
 flowchart LR
@@ -94,9 +96,9 @@ flowchart LR
 | Dense | `(64)` | `(128)` | Kết hợp các đặc trưng |
 | Dense Softmax | `(128)` | `(3)` | Xác suất của ba class |
 
-### 4.2. Model 2: CNN phức tạp có tuần tự và song song
+### 4.2. Bước 3 — Model 2: CNN phức tạp có tuần tự và song song
 
-Model 2 sử dụng Functional API và gồm hai kiểu xử lý:
+Thiết kế một CNN phức tạp bằng Functional API, sử dụng các CNN block và gồm hai kiểu xử lý:
 
 - Nhánh tuần tự: các convolution nối tiếp để học đặc trưng theo nhiều cấp.
 - Nhánh song song: nhiều convolution với kernel khác nhau xử lý cùng input để học đặc trưng ở nhiều scale.
@@ -130,7 +132,7 @@ Model 2 chỉ dùng ba nhánh `1x1`, `3x3` và `5x5` để giảm thời gian th
 - `5x5`: quan sát vùng không gian lớn hơn.
 - Trước khi `Concatenate` hoặc `Add`, các nhánh phải có cùng kích thước không gian. Model 2 kiểm tra liệu việc kết hợp nhiều receptive field có tốt hơn CNN tuần tự đơn giản hay không; đổi lại số parameter và nguy cơ overfitting tăng.
 
-### 4.3. Model 3: Transfer learning và fine-tuning
+### 4.3. Bước 4 — Model 3: Transfer learning và fine-tuning
 
 Model 3 kế thừa backbone đã học từ ImageNet. Trong phạm vi hai tuần, sử dụng EfficientNetB0 để giảm chi phí tính toán, sau đó thực hiện transfer learning và fine-tuning trên cùng bộ dữ liệu.
 
@@ -162,7 +164,7 @@ for layer in backbone.layers[:-30]:
     layer.trainable = False
 ```
 
-Fine-tuning giúp các feature cuối thích nghi với ảnh MRI. Cần báo cáo riêng kết quả của transfer learning và fine-tuning.
+Fine-tuning giúp các feature cuối thích nghi với ảnh MRI. Đây là **một kiến trúc Model 3 với hai giai đoạn huấn luyện**, không phải một kiến trúc thứ tư. Cần lưu checkpoint và báo cáo riêng kết quả sau giai đoạn transfer learning và sau fine-tuning.
 
 ## 5. Hàm mất mát và tối ưu
 
@@ -183,9 +185,9 @@ Fine-tuning:         1e-5 hoặc 1e-6
 
 Có thể dùng thêm `EarlyStopping`, `ReduceLROnPlateau` và `ModelCheckpoint`.
 
-## 6. Thiết kế thí nghiệm và đánh giá
+## 6. Thiết kế thí nghiệm và đánh giá (Bước 5)
 
-Ba model phải dùng cùng train/validation/test split, thứ tự class, image size, random seed và tiêu chí đánh giá.
+Ba kiến trúc model phải dùng cùng train/validation/test split, thứ tự class, image size, random seed và tiêu chí đánh giá. Không dùng test set trong quá trình chọn hyperparameter hoặc early stopping. Với bài toán đa lớp, đánh giá trên test set bằng các metric sau:
 
 | Metric | Ý nghĩa |
 |---|---|
@@ -195,14 +197,14 @@ Ba model phải dùng cùng train/validation/test split, thứ tự class, image
 | F1-score | Trung bình điều hòa giữa precision và recall |
 | Confusion matrix | Các cặp class thường bị nhầm |
 
-Nên báo cáo `macro average` bên cạnh accuracy để các class có trọng số ngang nhau.
+Nên báo cáo `macro average` bên cạnh accuracy để các class có trọng số ngang nhau; đồng thời báo cáo precision, recall và F1-score theo từng class. Có thể bổ sung balanced accuracy và ROC-AUC one-vs-rest nếu thư viện và dữ liệu cho phép.
 
 | Model | Parameters | Accuracy | Macro Precision | Macro Recall | Macro F1 | Inference time |
 |---|---:|---:|---:|---:|---:|---:|
 | Simple CNN | Đo từ model | Đo thực nghiệm | Đo thực nghiệm | Đo thực nghiệm | Đo thực nghiệm | Đo thực nghiệm |
 | Complex sequential-parallel CNN | Đo từ model | Đo thực nghiệm | Đo thực nghiệm | Đo thực nghiệm | Đo thực nghiệm | Đo thực nghiệm |
 | EfficientNet transfer learning | Đo từ model | Đo thực nghiệm | Đo thực nghiệm | Đo thực nghiệm | Đo thực nghiệm | Đo thực nghiệm |
-| EfficientNet fine-tuning | Đo từ model | Đo thực nghiệm | Đo thực nghiệm | Đo thực nghiệm | Đo thực nghiệm | Đo thực nghiệm |
+| EfficientNet fine-tuning (Model 3, giai đoạn 2) | Đo từ model | Đo thực nghiệm | Đo thực nghiệm | Đo thực nghiệm | Đo thực nghiệm | Đo thực nghiệm |
 
 Các giá trị trong bài báo gốc chỉ là reference, không phải kết quả đảm bảo của project mới.
 
@@ -222,15 +224,18 @@ Trong đó $A^k$ là feature map thứ $k$, $y^c$ là score của class $c$, và
 
 Grad-CAM cần được áp dụng cho cả ba model. Heatmap nên được kiểm tra xem có tập trung vào vùng u hay vào vùng nền/artefact. Đây là công cụ giải thích, không thay thế chẩn đoán y khoa.
 
-## 8. Phạm vi thí nghiệm trong 2 tuần
+## 8. Trình tự thực hiện và phạm vi thí nghiệm trong 2 tuần
 
 Để bảo đảm tính khả thi, thí nghiệm được giới hạn vào các kết quả cốt lõi:
 
-1. Huấn luyện và đánh giá ba model trên cùng một train/validation/test split.
-2. Áp dụng Grad-CAM cho một số mẫu đại diện của cả ba model.
-3. Thực hiện ablation augmentation chỉ trên Model 3 với hai cấu hình: có và không có augmentation.
-4. Kiểm tra robustness chỉ bằng Gaussian noise trên test set.
-5. Không thực hiện cross-dataset validation trong phiên bản hai tuần.
+1. Hoàn thiện pipeline làm sạch, normalize và augmentation; lưu lại split và class mapping để tái lập.
+2. Huấn luyện, lưu checkpoint tốt nhất và đánh giá Model 1 CNN đơn giản.
+3. Huấn luyện, lưu checkpoint tốt nhất và đánh giá Model 2 CNN phức tạp.
+4. Huấn luyện Model 3 theo hai giai đoạn: transfer learning rồi fine-tuning; đánh giá riêng từng giai đoạn.
+5. So sánh các model bằng metric, learning curve và confusion matrix; phân tích lỗi dự đoán.
+6. Áp dụng Grad-CAM cho một số mẫu đại diện của cả ba kiến trúc.
+7. Thực hiện ablation augmentation và kiểm tra robustness bằng Gaussian noise nếu còn thời gian.
+8. Không thực hiện cross-dataset validation trong phiên bản hai tuần.
 
 ## 9. Phân tích lỗi và robustness
 
@@ -241,16 +246,16 @@ Robustness chỉ được kiểm tra bằng Gaussian noise ở một hoặc hai 
 ## 10. Nguyên tắc triển khai
 
 1. Xây dựng Model 1 và Model 2 từ đầu; Model 3 dùng EfficientNetB0.
-2. Tách transfer learning và fine-tuning thành hai bước ngắn trong cùng quy trình.
-3. Dùng một pipeline dữ liệu duy nhất cho cả ba model.
+2. Tách transfer learning và fine-tuning thành hai giai đoạn trong cùng quy trình Model 3.
+3. Dùng một pipeline dữ liệu duy nhất cho cả ba kiến trúc model.
 4. Không dùng test set làm validation trong quá trình chọn model.
 5. Dùng mapping class cố định: `0=glioma`, `1=meningioma`, `2=pituitary tumor`.
-6. Dùng input thống nhất `224 x 224 x 3` cho cả ba model.
+6. Dùng input thống nhất `224 x 224 x 3` và quy tắc normalize nhất quán.
 7. Lưu metric, learning curve, confusion matrix và model summary cho từng thí nghiệm.
 
 ## 11. Sản phẩm đầu ra
 
-- Ba kiến trúc model và code huấn luyện tương ứng.
+- Ba kiến trúc model và code huấn luyện tương ứng; Model 3 có kết quả cho cả transfer learning và fine-tuning.
 - Checkpoint của model tốt nhất.
 - Bảng so sánh accuracy, precision, recall, F1-score và số parameter.
 - Learning curve của train/validation.
@@ -271,6 +276,6 @@ Robustness chỉ được kiểm tra bằng Gaussian noise ở một hoặc hai 
 
 ## 13. Kết luận
 
-Dự án trong hai tuần đánh giá ba hướng xây dựng model cho phân loại ảnh MRI: CNN đơn giản làm baseline, CNN phức tạp kết hợp xử lý tuần tự và song song với ba nhánh song song, và EfficientNetB0 sử dụng transfer learning/fine-tuning.
+Dự án trong hai tuần thực hiện đầy đủ năm yêu cầu: (1) làm sạch, normalize và augmentation dữ liệu; (2) CNN đơn giản làm baseline; (3) CNN phức tạp kết hợp các CNN block, xử lý tuần tự và song song; (4) EfficientNetB0 sử dụng transfer learning rồi fine-tuning; và (5) đánh giá bằng các metric phù hợp.
 
-Thiết kế này cho phép trả lời ba câu hỏi: CNN cơ bản hoạt động đến đâu, việc thêm nhánh song song có cải thiện biểu diễn ảnh hay không, và pretrained backbone có đem lại lợi ích so với model huấn luyện từ đầu hay không. Kết luận cuối cùng phải dựa trên cùng một protocol đánh giá và kết quả thực nghiệm của ba model.
+Thiết kế này cho phép trả lời CNN cơ bản hoạt động đến đâu, việc tăng độ phức tạp có cải thiện biểu diễn ảnh hay không, và pretrained backbone có đem lại lợi ích so với model huấn luyện từ đầu hay không. Kết luận cuối cùng phải dựa trên cùng một protocol đánh giá, trong đó kết quả transfer learning và fine-tuning của Model 3 được báo cáo riêng.
