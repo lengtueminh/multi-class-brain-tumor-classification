@@ -1,7 +1,13 @@
 import numpy as np
 import pandas as pd
 
-from src.preprocessing import build_patient_level_split, one_hot_labels, prepare_image
+from src.preprocessing import (
+    build_patient_level_split,
+    canonicalize_patient_id,
+    one_hot_labels,
+    prepare_image,
+    prepare_inventory,
+)
 
 
 def test_prepare_image_returns_normalized_rgb_and_binary_mask():
@@ -32,6 +38,36 @@ def test_patient_level_split_has_no_overlap():
     assert not sets["train"] & sets["validation"]
     assert not sets["train"] & sets["test"]
     assert not sets["validation"] & sets["test"]
+
+
+def test_inventory_normalizes_matlab_patient_id_encoding():
+    inventory = pd.DataFrame(
+        {
+            "file": ["1.mat"],
+            "class_index": [0],
+            "patient_id": ["[49 48 48 51 54 48]"],
+        }
+    )
+
+    normalized = prepare_inventory(inventory)
+
+    assert normalized.loc[0, "patient_id"] == "100360"
+    assert canonicalize_patient_id("[49 48 48 51 54 48]") == "100360"
+
+
+def test_split_is_reproducible():
+    inventory = pd.DataFrame(
+        {
+            "file": [f"{index}.mat" for index in range(12)],
+            "class_index": [0] * 4 + [1] * 4 + [2] * 4,
+            "patient_id": [f"p{index}" for index in range(12)],
+        }
+    )
+
+    first = build_patient_level_split(inventory, seed=7)
+    second = build_patient_level_split(inventory, seed=7)
+
+    pd.testing.assert_frame_equal(first, second)
 
 
 def test_one_hot_labels():

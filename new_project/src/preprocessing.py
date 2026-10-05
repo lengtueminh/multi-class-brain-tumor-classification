@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import re
 from typing import Any
 
 import cv2
@@ -15,6 +16,7 @@ from sklearn.preprocessing import OneHotEncoder
 EXPECTED_FIELDS = {"label", "PID", "image", "tumorBorder", "tumorMask"}
 RAW_LABEL_TO_CLASS_INDEX = {1: 1, 2: 0, 3: 2}
 CLASS_INDEX_TO_NAME = {0: "glioma", 1: "meningioma", 2: "pituitary tumor"}
+REQUIRED_INVENTORY_COLUMNS = {"class_index", "patient_id"}
 
 
 def _scalar(value: Any) -> Any:
@@ -29,6 +31,39 @@ def decode_patient_id(value: Any) -> str:
     if array.dtype.kind in {"i", "u"}:
         return "".join(chr(int(item)) for item in array)
     return str(_scalar(array))
+
+
+def canonicalize_patient_id(value: Any) -> str:
+    """Return one stable patient identifier for MATLAB and CSV representations."""
+    if isinstance(value, str):
+        numbers = re.findall(r"\d+", value)
+        if value.strip().startswith("[") and numbers:
+            return decode_patient_id(np.asarray([int(item) for item in numbers], dtype=np.int64))
+        return value.strip()
+    return decode_patient_id(value)
+
+
+def prepare_inventory(inventory: pd.DataFrame) -> pd.DataFrame:
+    """Validate and normalize an EDA inventory before splitting it."""
+    missing = REQUIRED_INVENTORY_COLUMNS - set(inventory.columns)
+    if missing:
+        raise ValueError(f"inventory is missing columns: {sorted(missing)}")
+
+    result = inventory.copy()
+    result["patient_id"] = result["patient_id"].map(canonicalize_patient_id)
+    result["class_index"] = pd.to_numeric(result["class_index"], errors="raise").astype(int)
+    if not result["class_index"].isin(CLASS_INDEX_TO_NAME).all():
+        raise ValueError("inventory contains an unknown class index")
+    if result["patient_id"].eq("").any():
+        raise ValueError("inventory contains an empty patient id")
+    patient_classes = result.groupby("patient_id")["class_index"].nunique()
+    if (patient_classes > 1).any():
+        raise ValueError("a patient is assigned to more than one class")
+    if "file" in result and result["file"].duplicated().any():
+        raise ValueError("inventory contains duplicate file paths")
+    if "class_name" in result:
+        result["class_name"] = result["class_index"].map(CLASS_INDEX_TO_NAME)
+    return result
 
 
 def load_case(path: Path) -> dict[str, np.ndarray]:
@@ -136,8 +171,10 @@ def build_patient_level_split(
     belonging to a patient receive the same split. This prevents slices from
     one patient leaking across train, validation, and test.
     """
-    if not np.isclose(train_ratio + validation_ratio + test_ratio, 1.0):
+    ratios = (train_ratio, validation_ratio, test_ratio)
+    if any(ratio <= 0 for ratio in ratios) or not np.isclose(sum(ratios), 1.0):
         raise ValueError("split ratios must sum to 1")
+    inventory = prepare_inventory(inventory)
     rng = np.random.default_rng(seed)
     assignments: list[dict[str, str]] = []
     for class_index, group in inventory.groupby("class_index", sort=True):
@@ -158,13 +195,50 @@ def build_patient_level_split(
     result = inventory.merge(split_by_patient, on=["class_index", "patient_id"], how="left", validate="many_to_one")
     if result["split"].isna().any():
         raise RuntimeError("Some inventory rows were not assigned to a split")
-    overlap = result.groupby("split")["patient_id"].unique()
+    overlap = result.groupby("split")["patient_id"].unique().reindex(
+        ("train", "validation", "test"), fill_value=[]
+    )
     # Fail loudly if the split would cause patient leakage.
     for left in ("train", "validation", "test"):
         for right in ("train", "validation", "test"):
             if left < right and set(overlap[left]).intersection(overlap[right]):
                 raise RuntimeError("Patient leakage detected between splits")
     return result
+
+
+def load_split_manifest(path: Path) -> pd.DataFrame:
+    """Load and validate a previously generated split manifest."""
+    manifest = prepare_inventory(pd.read_csv(path))
+    if "file" not in manifest:
+        raise ValueError("split manifest is missing the file column")
+    if "split" not in manifest:
+        raise ValueError("split manifest is missing the split column")
+    allowed_splits = {"train", "validation", "test"}
+    if not manifest["split"].isin(allowed_splits).all():
+        raise ValueError("split manifest contains an unknown split")
+    return manifest
+
+
+def save_split_manifest(
+    inventory: pd.DataFrame,
+    path: Path,
+    *,
+    seed: int = 42,
+    train_ratio: float = 0.7,
+    validation_ratio: float = 0.15,
+    test_ratio: float = 0.15,
+) -> pd.DataFrame:
+    """Create, validate and persist a deterministic patient-level manifest."""
+    manifest = build_patient_level_split(
+        inventory,
+        seed=seed,
+        train_ratio=train_ratio,
+        validation_ratio=validation_ratio,
+        test_ratio=test_ratio,
+    )
+    path.parent.mkdir(parents=True, exist_ok=True)
+    manifest.to_csv(path, index=False)
+    return manifest
 
 
 def one_hot_labels(class_indices: np.ndarray, num_classes: int = 3) -> np.ndarray:
