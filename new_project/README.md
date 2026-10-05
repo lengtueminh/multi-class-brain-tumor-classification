@@ -7,6 +7,7 @@
 - Đặt mã nguồn tái sử dụng trong `src/`.
 - Giữ dữ liệu đầu vào trong `data/raw/` và dữ liệu đã xử lý trong `data/processed/`.
 - Lưu model, metrics và biểu đồ lần lượt trong `models/` và `reports/`.
+- Đọc [HUONG_DAN_SU_DUNG.md](HUONG_DAN_SU_DUNG.md) trước khi chạy hoặc đóng góp code.
 
 ## Pipeline dùng chung
 
