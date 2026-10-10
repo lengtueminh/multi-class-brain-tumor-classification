@@ -25,6 +25,8 @@ new_project/
 
 ## Quy ước
 
+Thông tin model đã chốt: [Complex CNN](new_project/COMPLEX_CNN.md).
+
 - `original/` là bản lưu project gốc; không sửa trực tiếp khi phát triển tính năng mới.
 - Code kế thừa đặt trong `new_project/` và có thể tham chiếu ý tưởng/notebook từ `original/`.
 - Dữ liệu và model lớn không commit vào Git; chỉ giữ `.gitkeep` để đánh dấu thư mục.
