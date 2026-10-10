@@ -139,6 +139,10 @@ checkpoint tốt nhất.
 
 - Huấn luyện từ đầu.
 - Không sử dụng pretrained weights.
+- Chạy notebook `notebooks/model1_final.ipynb`; các biến `EPOCHS`,
+  `BATCH_SIZE` và `LEARNING_RATE` nằm ở cell cấu hình.
+- Notebook dùng manifest chung, chọn checkpoint theo `val_loss` và chỉ dùng
+  test set một lần ở bước đánh giá cuối.
 - Phụ trách thêm kiểm tra data pipeline và khả năng tái lập.
 
 ### Model 2 — Complex Sequential–Parallel CNN
