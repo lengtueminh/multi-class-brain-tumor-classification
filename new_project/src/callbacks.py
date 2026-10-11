@@ -44,3 +44,54 @@ class ValidationMetrics(tf.keras.callbacks.Callback):
         print("\n" + " | ".join(
             f"{name}: {value:.4f}" for name, value in metrics.items()
         ))
+
+
+def simple_callbacks(validation_dataset, class_names, checkpoint_path):
+    """The simple notebook's original callback order and settings."""
+    return [
+        ValidationMetrics(validation_dataset, class_names),
+        tf.keras.callbacks.ModelCheckpoint(
+            str(checkpoint_path), monitor="val_loss", mode="min",
+            save_best_only=True, verbose=1,
+        ),
+        tf.keras.callbacks.ReduceLROnPlateau(
+            monitor="val_loss", mode="min", factor=0.5, patience=4,
+            min_lr=1e-6, verbose=1,
+        ),
+        tf.keras.callbacks.EarlyStopping(
+            monitor="val_loss", mode="min", patience=10,
+            restore_best_weights=True, verbose=1,
+        ),
+    ]
+
+
+def complex_callbacks(checkpoint_path, reports_dir, *, patience=20,
+                      min_delta=0.0, decay_epochs=60):
+    """The complex notebook's original callback order and settings."""
+    import keras
+    from pathlib import Path
+
+    return [
+        keras.callbacks.TerminateOnNaN(),
+        keras.callbacks.CSVLogger(str(Path(reports_dir) / "training_log.csv")),
+        keras.callbacks.ModelCheckpoint(
+            str(checkpoint_path), monitor="val_loss", mode="min", save_best_only=True,
+        ),
+        keras.callbacks.EarlyStopping(
+            monitor="val_loss", mode="min", patience=patience, min_delta=min_delta,
+            start_from_epoch=decay_epochs, restore_best_weights=False,
+        ),
+    ]
+
+
+def transfer_callbacks(checkpoint_path):
+    """The transfer notebook's original callback order and settings."""
+    return [
+        tf.keras.callbacks.ModelCheckpoint(
+            checkpoint_path, monitor="val_accuracy", save_best_only=True,
+            mode="max", verbose=1,
+        ),
+        tf.keras.callbacks.ReduceLROnPlateau(
+            monitor="val_accuracy", factor=0.3, patience=5, min_delta=0.001, verbose=1,
+        ),
+    ]
