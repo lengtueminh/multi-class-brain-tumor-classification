@@ -44,7 +44,7 @@ Ba model phải sử dụng cùng:
 - Dataset trong `data/raw/`.
 - Split manifest tại `data/processed/split_manifest.csv`.
 - Random seed `42`.
-- Input `224 x 224 x 3`.
+- Input `224 x 224 x 3` for simple/complex CNN; `240 x 240 x 3` for EfficientNetB2.
 - Normalize pixel về `[0, 1]`.
 - Class mapping:
   - `0 = glioma`
@@ -139,7 +139,7 @@ checkpoint tốt nhất.
 
 - Huấn luyện từ đầu.
 - Không sử dụng pretrained weights.
-- Chạy notebook `notebooks/model1_final.ipynb`; các biến `EPOCHS`,
+- Chạy notebook `notebooks/04_simple_cnn.ipynb`; các biến `EPOCHS`,
   `BATCH_SIZE` và `LEARNING_RATE` nằm ở cell cấu hình.
 - Notebook dùng manifest chung, chọn checkpoint theo `val_loss` và chỉ dùng
   test set một lần ở bước đánh giá cuối.
@@ -152,13 +152,12 @@ checkpoint tốt nhất.
 - Nhánh song song sử dụng kernel `1x1`, `3x3`, `5x5`.
 - Phụ trách thêm module evaluation và bảng so sánh.
 
-### Model 3 — EfficientNetB0
+### Model 3 - EfficientNetB2 (current implementation)
 
-- Giai đoạn 1: đóng băng backbone, chỉ train classifier head.
-- Giai đoạn 2: mở một phần layer cuối để fine-tuning với learning rate nhỏ.
-- Báo cáo riêng kết quả của hai giai đoạn.
-- Phụ trách thêm Grad-CAM, ablation augmentation, Gaussian noise robustness
-  và inference.
+- Input 240 x 240 x 3; ImageNet weights and a fully trainable backbone.
+- Frozen-head training and separate fine-tuning remain future decisions.
+- Notebook: `notebooks/03_transfer_efficientnetb2.ipynb`.
+- Grad-CAM, augmentation ablation, robustness, and inference remain separate tasks.
 
 ## 7. Quy ước lưu kết quả
 
@@ -228,3 +227,20 @@ thiết. Nếu `main` có thay đổi mới, cập nhật branch trước khi m�
 - [ ] Có metrics, learning curve và confusion matrix.
 - [ ] Không commit dữ liệu hoặc file nhị phân lớn.
 - [ ] README hoặc notebook có lệnh chạy lại.
+
+
+## Unified training entry point
+
+See [README.md](README.md#training-cli) for model defaults, runtime requirements,
+optional arguments, and output files. From the repository root:
+
+```powershell
+.\.venv\Scripts\python.exe new_project/src/train.py --model simple_cnn
+.\.venv\Scripts\python.exe new_project/src/train.py --model complex_cnn
+.\.venv\Scripts\python.exe new_project/src/train.py --model efficientnetb2
+```
+
+The complex model defaults to CUDA/mixed_float16 and fails when CUDA is unavailable.
+CPU verification requires `--device cpu --precision float32`. CLI runs use new
+`new_project/runs/` directories. Historical checkpoints and notebook outputs
+retain the preprocessing/runtime used when they were generated.
