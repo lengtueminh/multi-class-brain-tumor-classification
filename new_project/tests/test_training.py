@@ -25,6 +25,7 @@ def test_fit_preserves_history_formats_and_prevents_overwrite(tmp_path, name, fi
     assert result == history
     assert calls[0][1]["shuffle"] is (name != "complex_cnn")
     assert calls[0][1]["epochs"] == 2
+    assert calls[0][1]["verbose"] == 1
     saved = reports / filename
     assert saved.exists()
     if name == "simple_cnn":

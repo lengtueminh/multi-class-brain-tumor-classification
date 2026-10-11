@@ -21,9 +21,12 @@ def train_model(model, train_dataset, validation_dataset, checkpoint_path, repor
     checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
     reports_dir.mkdir(parents=True, exist_ok=True)
     complex_run = model_name not in {"simple_cnn", "efficientnetb2"}
+    if complex_run:
+        print("Starting fit: the first training batch fills the full shuffle buffer. "
+              "Startup may take a minute or longer before batch progress appears.", flush=True)
     result = model.fit(
         train_dataset, validation_data=validation_dataset, epochs=epochs,
-        callbacks=callbacks, shuffle=not complex_run, verbose=2 if complex_run else 1,
+        callbacks=callbacks, shuffle=not complex_run, verbose=1,
     )
     history = {key: [float(v) for v in values] for key, values in result.history.items()}
     if model_name == "simple_cnn":
