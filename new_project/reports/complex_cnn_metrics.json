@@ -1,0 +1,54 @@
+{
+  "accuracy": 0.8522954091816367,
+  "macro_precision": 0.8258642765685019,
+  "macro_recall": 0.818906543087278,
+  "macro_f1": 0.8155039793695256,
+  "per_class_metrics": {
+    "glioma": {
+      "precision": 0.9624413145539906,
+      "recall": 0.8991228070175439,
+      "f1": 0.9297052154195011,
+      "support": 228
+    },
+    "meningioma": {
+      "precision": 0.7222222222222222,
+      "recall": 0.5701754385964912,
+      "f1": 0.6372549019607843,
+      "support": 114
+    },
+    "pituitary tumor": {
+      "precision": 0.7929292929292929,
+      "recall": 0.9874213836477987,
+      "f1": 0.8795518207282913,
+      "support": 159
+    }
+  },
+  "confusion_matrix": [
+    [
+      205,
+      23,
+      0
+    ],
+    [
+      8,
+      65,
+      41
+    ],
+    [
+      0,
+      2,
+      157
+    ]
+  ],
+  "model_name": "complex_cnn",
+  "class_names": [
+    "glioma",
+    "meningioma",
+    "pituitary tumor"
+  ],
+  "num_test_images": 501,
+  "parameter_count": 456755,
+  "inference_time": 5.555292415159486,
+  "inference_time_unit": "ms/image",
+  "inference_time_method": "Warmed predict_on_batch calls; excludes data loading"
+}
