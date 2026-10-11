@@ -44,7 +44,7 @@ Ba model phải sử dụng cùng:
 - Dataset trong `data/raw/`.
 - Split manifest tại `data/processed/split_manifest.csv`.
 - Random seed `42`.
-- Input `224 x 224 x 3` for simple/complex CNN; `240 x 240 x 3` for EfficientNetB2.
+- Ảnh đầu vào `224 x 224 x 3` cho Simple/Complex CNN; `240 x 240 x 3` cho EfficientNetB2.
 - Normalize pixel về `[0, 1]`.
 - Class mapping:
   - `0 = glioma`
@@ -152,12 +152,12 @@ checkpoint tốt nhất.
 - Nhánh song song sử dụng kernel `1x1`, `3x3`, `5x5`.
 - Phụ trách thêm module evaluation và bảng so sánh.
 
-### Model 3 - EfficientNetB2 (current implementation)
+### Model 3 — EfficientNetB2 (triển khai hiện tại)
 
-- Input 240 x 240 x 3; ImageNet weights and a fully trainable backbone.
-- Frozen-head training and separate fine-tuning remain future decisions.
+- Ảnh đầu vào `240 x 240 x 3`; trọng số ImageNet, toàn bộ backbone được huấn luyện.
+- Việc đóng băng backbone và tinh chỉnh riêng sẽ được quyết định sau.
 - Notebook: `notebooks/03_transfer_efficientnetb2.ipynb`.
-- Grad-CAM, augmentation ablation, robustness, and inference remain separate tasks.
+- Grad-CAM, thử nghiệm bỏ tăng cường dữ liệu, độ bền vững và suy luận là các công việc riêng.
 
 ## 7. Quy ước lưu kết quả
 
@@ -229,18 +229,10 @@ thiết. Nếu `main` có thay đổi mới, cập nhật branch trước khi m�
 - [ ] README hoặc notebook có lệnh chạy lại.
 
 
-## Unified training entry point
+## 10. Huấn luyện bằng CLI
 
-See [README.md](README.md#training-cli) for model defaults, runtime requirements,
-optional arguments, and output files. From the repository root:
-
-```powershell
-.\.venv\Scripts\python.exe new_project/src/train.py --model simple_cnn
-.\.venv\Scripts\python.exe new_project/src/train.py --model complex_cnn
-.\.venv\Scripts\python.exe new_project/src/train.py --model efficientnetb2
-```
-
-The complex model defaults to CUDA/mixed_float16 and fails when CUDA is unavailable.
-CPU verification requires `--device cpu --precision float32`. CLI runs use new
-`new_project/runs/` directories. Historical checkpoints and notebook outputs
-retain the preprocessing/runtime used when they were generated.
+Xem [README.md](README.md#huấn-luyện-bằng-cli) để biết lệnh chạy, mặc định của
+từng model, yêu cầu môi trường và nơi lưu kết quả. CLI tạo thư mục mới trong
+`runs/`; định dạng báo cáo của từng notebook được giữ nguyên.
+Checkpoint và kết quả notebook cũ cần cách xử lý dữ liệu và môi trường ban đầu
+để tái lập kết quả.
