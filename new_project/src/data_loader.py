@@ -32,6 +32,8 @@ def build_tf_dataset(
     batch_size: int = 32,
     training: bool = False,
     seed: int = 42,
+    augment: bool | None = None,
+    shuffle: bool | None = None,
 ):
     """Build a lazy ``tf.data.Dataset`` with identical preprocessing for all models."""
     import tensorflow as tf
@@ -40,10 +42,14 @@ def build_tf_dataset(
     frame = frame.loc[frame["split"].eq(split)].reset_index(drop=True)
     if frame.empty:
         raise ValueError(f"split {split!r} contains no samples")
-    if split == "train" and training is False:
-        raise ValueError("the training split must be requested with training=True")
     if training and split != "train":
         raise ValueError("augmentation is only allowed for the train split")
+    augment = training if augment is None else augment
+    shuffle = training if shuffle is None else shuffle
+    if augment and split != "train":
+        raise ValueError("augmentation is only allowed for the train split")
+    if shuffle and split != "train":
+        raise ValueError("shuffling is only allowed for the train split")
 
     output_signature = (
         tf.TensorSpec(shape=(image_size, image_size, 3), dtype=tf.float32),
@@ -53,8 +59,10 @@ def build_tf_dataset(
         lambda: _sample_generator(frame, raw_dir, image_size),
         output_signature=output_signature,
     )
-    if training:
+    dataset = dataset.apply(tf.data.experimental.assert_cardinality(len(frame)))
+    if shuffle:
         dataset = dataset.shuffle(len(frame), seed=seed, reshuffle_each_iteration=True)
+    if augment:
         dataset = dataset.map(_augment_batch, num_parallel_calls=tf.data.AUTOTUNE)
     return dataset.batch(batch_size).prefetch(tf.data.AUTOTUNE)
 
