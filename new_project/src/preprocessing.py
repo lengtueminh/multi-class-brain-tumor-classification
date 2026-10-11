@@ -72,7 +72,9 @@ def load_case(path: Path) -> dict[str, np.ndarray]:
     SciPy reads classic MATLAB files, while MATLAB v7.3 files are HDF5 files
     and therefore require ``h5py``. Both readers are normalized to the same
     dictionary of ``cjdata`` fields so the rest of the pipeline is format
-    independent.
+    independent. HDF5 image and mask axes are reversed on disk by MATLAB;
+    transpose both to restore MATLAB's row/column indexing. Border coordinate
+    values already describe that indexing and must not be swapped.
     """
     try:
         mat = loadmat(path, squeeze_me=True, struct_as_record=False)
@@ -94,6 +96,9 @@ def load_case(path: Path) -> dict[str, np.ndarray]:
                 for name in EXPECTED_FIELDS
                 if name in group
             }
+            for name in ("image", "tumorMask"):
+                if name in fields:
+                    fields[name] = fields[name].T
     missing = EXPECTED_FIELDS - fields.keys()
     if missing:
         raise KeyError(f"missing fields: {sorted(missing)}")

@@ -35,3 +35,16 @@ train = build_tf_dataset(
 
 `training=True` chỉ được dùng với split `train`; validation và test không
 augmentation. Không tạo lại split riêng trong notebook của từng model.
+
+`src.preprocessing.load_case` restores the intended MATLAB image orientation:
+HDF5/v7.3 images and masks are transposed together; classic MATLAB images are
+already decoded in that orientation by SciPy. Tumor-border `(x, y)` values,
+labels, and patient identifiers are unchanged. All three models now use this
+orientation, with 224px inputs for simple/complex CNN and 240px for EfficientNetB2.
+
+This changes the shared reader's previous HDF5 orientation for complex CNN and
+EfficientNetB2. Historical checkpoints need their original preprocessing to
+reproduce their results; new comparisons require retraining with this reader.
+Saved notebook outputs and EDA image hashes still describe the run that produced
+them until those notebooks are rerun. The existing patient split remains valid
+and does not need regeneration.
