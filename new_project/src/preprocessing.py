@@ -213,7 +213,8 @@ def build_patient_level_split(
 
 def load_split_manifest(path: Path) -> pd.DataFrame:
     """Load and validate a previously generated split manifest."""
-    manifest = prepare_inventory(pd.read_csv(path))
+    # Patient identifiers are text, even when a CSV column contains only digits.
+    manifest = prepare_inventory(pd.read_csv(path, dtype={"patient_id": str}))
     if "file" not in manifest:
         raise ValueError("split manifest is missing the file column")
     if "split" not in manifest:

@@ -7,6 +7,7 @@ from src.preprocessing import (
     build_patient_level_split,
     canonicalize_patient_id,
     load_case,
+    load_split_manifest,
     one_hot_labels,
     prepare_image,
     prepare_inventory,
@@ -123,3 +124,18 @@ def test_split_is_reproducible():
 def test_one_hot_labels():
     encoded = one_hot_labels(np.array([0, 2, 1]))
     np.testing.assert_array_equal(encoded, np.eye(3, dtype=np.float32)[[0, 2, 1]])
+
+
+def test_manifest_round_trip_preserves_numeric_patient_identifiers(tmp_path):
+    path = tmp_path / "manifest.csv"
+    frame = pd.DataFrame({
+        "file": ["a.mat", "b.mat", "c.mat"],
+        "class_index": [0, 1, 2],
+        "patient_id": ["00123", "100360", "[49 50 51]"],
+        "split": ["train", "validation", "test"],
+    })
+    frame.to_csv(path, index=False)
+    loaded = load_split_manifest(path)
+    assert loaded.patient_id.tolist() == ["00123", "100360", "123"]
+    loaded.to_csv(path, index=False)
+    pd.testing.assert_frame_equal(load_split_manifest(path), loaded)
