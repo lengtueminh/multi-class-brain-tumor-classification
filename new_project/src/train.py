@@ -1,4 +1,4 @@
-"""Train: python new_project/src/train.py --model simple_cnn."""
+"""Train one model: python new_project/src/train.py --model simple_cnn."""
 
 import argparse
 from datetime import datetime
@@ -41,6 +41,7 @@ def parse_args(argv=None):
 
 
 def configure_runtime(args):
+    """Configure the selected notebook runtime before importing any model."""
     os.environ["KERAS_BACKEND"] = args.backend
     if args.backend == "torch":
         os.environ["KERAS_TORCH_DEVICE"] = args.device
@@ -63,7 +64,7 @@ def configure_runtime(args):
                                "Linux/WSL2 environment.")
         args.device = "cuda" if tf.config.get_visible_devices("GPU") else "cpu"
     else:
-        # TensorFlow supplies data only,  PyTorch own the GPU
+        # TensorFlow supplies data only; let PyTorch own the GPU.
         tf.config.set_visible_devices([], "GPU")
     import keras
 
@@ -83,7 +84,7 @@ def run(args):
     from src.callbacks import complex_callbacks, simple_callbacks, transfer_callbacks
     from src.data_loader import build_tf_dataset
     from src.evaluation import (
-        CLASS_NAMES, evaluate_model, save_json,
+        CLASS_NAMES, evaluate_model, evaluate_simple_cnn, evaluate_transfer, save_json,
     )
     from src.preprocessing import load_split_manifest
     from src.training import train_model
@@ -150,19 +151,21 @@ def run(args):
     if args.model == "efficientnetb2":
         model.save(models / "last.keras")
     best = keras.models.load_model(checkpoint)
-    for split in ("validation", "test"):
-        metrics = evaluate_model(
-            best, datasets[split], args.model, reports, split=split,
-            history=history if split == "test" else None,
-        )
-        print(f"{split}: accuracy={metrics['accuracy']:.4f}, "
-              f"macro_f1={metrics['macro_f1']:.4f}")
     if args.model == "simple_cnn":
+        evaluate_simple_cnn(best, datasets["test"], history, reports)
         clean_train = build_tf_dataset(
             manifest, args.raw_dir, split="train", training=True, augment=False,
             image_size=args.image_size, batch_size=args.batch_size, seed=args.seed,
         )
-        print("train_clean", best.evaluate(clean_train, verbose=0, return_dict=True))
+        for name, dataset in (("train_clean", clean_train), ("validation", datasets["validation"])):
+            print(name, best.evaluate(dataset, verbose=0, return_dict=True))
+    elif args.model == "efficientnetb2":
+        evaluate_transfer(best, datasets["validation"], datasets["test"], history, reports)
+    else:
+        from src.evaluation import evaluate_validation
+
+        evaluate_validation(best, datasets["validation"], args.model, reports)
+        evaluate_model(best, datasets["test"], args.model, reports)
     return run_dir
 
 

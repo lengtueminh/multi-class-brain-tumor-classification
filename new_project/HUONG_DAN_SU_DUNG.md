@@ -191,28 +191,6 @@ parameter_count
 inference_time
 ```
 
-Ba model dùng chung `src.evaluation.evaluate_model()` cho cả validation và test:
-
-```python
-validation_metrics = evaluate_model(model, validation_ds, model_name, reports_dir,
-                                    split="validation")
-test_metrics = evaluate_model(model, test_ds, model_name, reports_dir, history=history)
-```
-
-Dataset đánh giá không shuffle hoặc augmentation. Accuracy, precision, recall và
-F1 được tính từ các nhãn và dự đoán thu thập trong cùng batch; precision, recall
-và F1 tổng hợp là macro average trên đủ ba lớp. Trường F1 trong JSON theo lớp là
-`f1`. `inference_time` dùng đơn vị `ms/image`, có warm-up và không tính thời gian
-tải dữ liệu. Giá trị này không so sánh trực tiếp với thời gian giây/ảnh của hàm
-Simple CNN cũ.
-
-Mỗi model xuất `<model>_metrics.json`, `<model>_classification_report.csv`,
-`<model>_confusion_matrix.csv` và `<model>_confusion_matrix.png` cho test. Các file
-validation có tiền tố `<model>_validation_`. Khi truyền `history`, hàm tạo thêm
-`<model>_learning_curve.png`. EfficientNetB2 cũng dùng các tên file có tiền tố
-`efficientnetb2_`, thay cho tên CSV và PNG chung trước đây. Các file kết quả cũ
-được giữ nguyên; quy ước này áp dụng khi chạy đánh giá mới.
-
 Các file model, report và dữ liệu sinh ra được Git ignore theo mặc định. Chỉ
 commit file kết quả nhỏ hoặc file mẫu khi cả nhóm thống nhất.
 
