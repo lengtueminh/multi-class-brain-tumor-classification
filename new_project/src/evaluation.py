@@ -145,3 +145,138 @@ def evaluate_model(model, test_dataset, model_name, reports_dir="reports"):
     plot_confusion_matrix(metrics["confusion_matrix"],
                         reports_dir / f"{model_name}_confusion_matrix.png", model_name)
     return metrics
+
+
+def evaluate_validation(model, dataset, model_name, reports_dir):
+    """Preserve the complex notebook's validation report."""
+    metrics = {
+        key: float(value) for key, value in
+        model.evaluate(dataset, return_dict=True, verbose=0).items()
+    }
+    y_true, y_prob, _ = collect_predictions(model, dataset)
+    metrics.update(compute_metrics(y_true, y_prob))
+    metrics.update(split="validation", num_validation_images=len(y_true))
+    reports_dir = Path(reports_dir)
+    save_json(metrics, reports_dir / f"{model_name}_validation_metrics.json")
+    plot_confusion_matrix(metrics["confusion_matrix"],
+                          reports_dir / f"{model_name}_validation_confusion_matrix.png", model_name)
+    return metrics
+
+
+def evaluate_simple_cnn(model, test_dataset, history, reports_dir, *, show=False):
+    """Preserve the simple notebook's reports and end-to-end seconds/image timing."""
+    import time
+    import matplotlib.pyplot as plt
+    import seaborn as sns
+    from sklearn.metrics import classification_report
+
+    reports_dir = Path(reports_dir)
+    reports_dir.mkdir(parents=True, exist_ok=True)
+    best_model = model
+    # Cell 9 - Curves, test metrics and confusion matrix
+    plt.figure(figsize=(12, 4))
+    plt.subplot(1, 2, 1)
+    plt.plot(history["accuracy"], label="train")
+    plt.plot(history["val_accuracy"], label="validation")
+    plt.title("Accuracy")
+    plt.legend()
+    plt.subplot(1, 2, 2)
+    plt.plot(history["loss"], label="train")
+    plt.plot(history["val_loss"], label="validation")
+    plt.title("Loss")
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig(reports_dir / "simple_cnn_learning_curve.png", dpi=150)
+    if show:
+        plt.show()
+    plt.close()
+
+    y_true = np.concatenate([np.argmax(y.numpy(), axis=1) for _, y in test_dataset])
+    start = time.perf_counter()
+    probabilities = best_model.predict(test_dataset, verbose=1)
+    inference_time = (time.perf_counter() - start) / len(y_true)
+    y_pred = probabilities.argmax(axis=1)
+    report = classification_report(y_true, y_pred, labels=[0, 1, 2], target_names=CLASS_NAMES, output_dict=True, zero_division=0)
+    metrics = {
+        "accuracy": float(report["accuracy"]),
+        "macro_precision": float(report["macro avg"]["precision"]),
+        "macro_recall": float(report["macro avg"]["recall"]),
+        "macro_f1": float(report["macro avg"]["f1-score"]),
+        "per_class_metrics": {name: report[name] for name in CLASS_NAMES},
+        "parameter_count": int(best_model.count_params()),
+        "inference_time": float(inference_time),
+    }
+    with open(reports_dir / "simple_cnn_metrics.json", "w") as handle:
+        json.dump(metrics, handle, indent=2)
+    print(json.dumps(metrics, indent=2))
+
+    plt.figure(figsize=(6, 5))
+    sns.heatmap(confusion_matrix(y_true, y_pred, labels=[0, 1, 2]), annot=True, fmt="d", cmap="Blues", xticklabels=CLASS_NAMES, yticklabels=CLASS_NAMES)
+    plt.xlabel("Predicted")
+    plt.ylabel("True")
+    plt.tight_layout()
+    plt.savefig(reports_dir / "simple_cnn_confusion_matrix.png", dpi=150)
+    if show:
+        plt.show()
+    plt.close()
+    return metrics
+
+
+def evaluate_transfer(model, val_ds, test_ds, history, reports_dir, *, show=False):
+    """Preserve EfficientNetB2's notebook evaluation and CSV reports."""
+    import pandas as pd
+
+    reports_dir = Path(reports_dir)
+    reports_dir.mkdir(parents=True, exist_ok=True)
+    best_model = model
+    import matplotlib.pyplot as plt
+    import seaborn as sns
+    from sklearn.metrics import classification_report, confusion_matrix
+
+    val_metrics = best_model.evaluate(val_ds, return_dict=True)
+    test_metrics = best_model.evaluate(test_ds, return_dict=True)
+    print(f"Validation accuracy: {val_metrics['accuracy']:.4f}")
+    print(f"Test accuracy: {test_metrics['accuracy']:.4f}")
+
+    history_df = pd.DataFrame(history)
+    history_df["epoch"] = np.arange(1, len(history_df) + 1)
+    history_df.to_csv(reports_dir / "history.csv", index=False)
+
+    fig, axes = plt.subplots(1, 2, figsize=(12, 4))
+    axes[0].plot(history_df["epoch"], history_df["loss"], label="train")
+    axes[0].plot(history_df["epoch"], history_df["val_loss"], label="validation")
+    axes[0].set_title("Loss")
+    axes[0].legend()
+    axes[1].plot(history_df["epoch"], history_df["accuracy"], label="train")
+    axes[1].plot(history_df["epoch"], history_df["val_accuracy"], label="validation")
+    axes[1].set_title("Accuracy")
+    axes[1].legend()
+    plt.tight_layout()
+    plt.savefig(reports_dir / "learning_curves.png", dpi=160)
+    if show:
+        plt.show()
+    plt.close()
+
+    y_true, y_pred = [], []
+    for images, labels in test_ds:
+        y_true.extend(np.argmax(labels.numpy(), axis=1))
+        y_pred.extend(np.argmax(best_model.predict(images, verbose=0), axis=1))
+
+    report_df = pd.DataFrame(classification_report(y_true, y_pred, target_names=CLASS_NAMES, digits=4, output_dict=True)).transpose()
+    report_df.to_csv(reports_dir / "classification_report.csv")
+
+    cm = confusion_matrix(y_true, y_pred)
+    cm_df = pd.DataFrame(cm, index=CLASS_NAMES, columns=CLASS_NAMES)
+    cm_df.to_csv(reports_dir / "confusion_matrix.csv")
+
+    plt.figure(figsize=(6, 5))
+    sns.heatmap(cm, annot=True, fmt="d", cmap="Blues", xticklabels=CLASS_NAMES, yticklabels=CLASS_NAMES)
+    plt.xlabel("Predicted")
+    plt.ylabel("True")
+    plt.title("Original EfficientNetB2 - Test Confusion Matrix")
+    plt.tight_layout()
+    plt.savefig(reports_dir / "confusion_matrix.png", dpi=160)
+    if show:
+        plt.show()
+    plt.close()
+    return val_metrics, test_metrics, report_df, cm_df

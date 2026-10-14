@@ -22,6 +22,7 @@ new_project/models/*
 !new_project/models/complex_cnn_best.keras
 new_project/reports/*
 !new_project/reports/.gitkeep
+new_project/runs/
 !new_project/reports/complex_cnn_*
 
 # Local configuration and experiment outputs

@@ -44,7 +44,7 @@ Ba model phải sử dụng cùng:
 - Dataset trong `data/raw/`.
 - Split manifest tại `data/processed/split_manifest.csv`.
 - Random seed `42`.
-- Input `224 x 224 x 3`.
+- Ảnh đầu vào `224 x 224 x 3` cho Simple/Complex CNN; `240 x 240 x 3` cho EfficientNetB2.
 - Normalize pixel về `[0, 1]`.
 - Class mapping:
   - `0 = glioma`
@@ -139,7 +139,7 @@ checkpoint tốt nhất.
 
 - Huấn luyện từ đầu.
 - Không sử dụng pretrained weights.
-- Chạy notebook `notebooks/model1_final.ipynb`; các biến `EPOCHS`,
+- Chạy notebook `notebooks/04_simple_cnn.ipynb`; các biến `EPOCHS`,
   `BATCH_SIZE` và `LEARNING_RATE` nằm ở cell cấu hình.
 - Notebook dùng manifest chung, chọn checkpoint theo `val_loss` và chỉ dùng
   test set một lần ở bước đánh giá cuối.
@@ -152,13 +152,12 @@ checkpoint tốt nhất.
 - Nhánh song song sử dụng kernel `1x1`, `3x3`, `5x5`.
 - Phụ trách thêm module evaluation và bảng so sánh.
 
-### Model 3 — EfficientNetB0
+### Model 3 — EfficientNetB2 (triển khai hiện tại)
 
-- Giai đoạn 1: đóng băng backbone, chỉ train classifier head.
-- Giai đoạn 2: mở một phần layer cuối để fine-tuning với learning rate nhỏ.
-- Báo cáo riêng kết quả của hai giai đoạn.
-- Phụ trách thêm Grad-CAM, ablation augmentation, Gaussian noise robustness
-  và inference.
+- Ảnh đầu vào `240 x 240 x 3`; trọng số ImageNet, toàn bộ backbone được huấn luyện.
+- Việc đóng băng backbone và tinh chỉnh riêng sẽ được quyết định sau.
+- Notebook: `notebooks/03_transfer_efficientnetb2.ipynb`.
+- Grad-CAM, thử nghiệm bỏ tăng cường dữ liệu, độ bền vững và suy luận là các công việc riêng.
 
 ## 7. Quy ước lưu kết quả
 
@@ -228,3 +227,12 @@ thiết. Nếu `main` có thay đổi mới, cập nhật branch trước khi m�
 - [ ] Có metrics, learning curve và confusion matrix.
 - [ ] Không commit dữ liệu hoặc file nhị phân lớn.
 - [ ] README hoặc notebook có lệnh chạy lại.
+
+
+## 10. Huấn luyện bằng CLI
+
+Xem [README.md](README.md#huấn-luyện-bằng-cli) để biết lệnh chạy, mặc định của
+từng model, yêu cầu môi trường và nơi lưu kết quả. CLI tạo thư mục mới trong
+`runs/`; định dạng báo cáo của từng notebook được giữ nguyên.
+Checkpoint và kết quả notebook cũ cần cách xử lý dữ liệu và môi trường ban đầu
+để tái lập kết quả.
