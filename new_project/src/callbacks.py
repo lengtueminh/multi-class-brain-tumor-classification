@@ -1,9 +1,12 @@
+"""Reusable training callbacks extracted from the model notebooks."""
+
 import numpy as np
 import tensorflow as tf
 from sklearn.metrics import classification_report
 
 
 class ValidationMetrics(tf.keras.callbacks.Callback):
+    """Log the simple CNN notebook's validation macro-F1 and class recalls."""
 
     def __init__(self, dataset, class_names):
         super().__init__()
@@ -44,6 +47,7 @@ class ValidationMetrics(tf.keras.callbacks.Callback):
 
 
 def simple_callbacks(validation_dataset, class_names, checkpoint_path):
+    """The simple notebook's original callback order and settings."""
     return [
         ValidationMetrics(validation_dataset, class_names),
         tf.keras.callbacks.ModelCheckpoint(
@@ -63,6 +67,7 @@ def simple_callbacks(validation_dataset, class_names, checkpoint_path):
 
 def complex_callbacks(checkpoint_path, reports_dir, *, patience=20,
                       min_delta=0.0, decay_epochs=60):
+    """The complex notebook's original callback order and settings."""
     import keras
     from pathlib import Path
 
@@ -80,6 +85,7 @@ def complex_callbacks(checkpoint_path, reports_dir, *, patience=20,
 
 
 def transfer_callbacks(checkpoint_path):
+    """The transfer notebook's original callback order and settings."""
     return [
         tf.keras.callbacks.ModelCheckpoint(
             checkpoint_path, monitor="val_accuracy", save_best_only=True,

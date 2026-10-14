@@ -18,7 +18,6 @@ def _sample_generator(
 ) -> Iterator[tuple[np.ndarray, np.ndarray]]:
     for row in manifest.itertuples(index=False):
         case = load_case(raw_dir / row.file)
-        #load 1 ảnh, crop, resize, chuyển về [0,1]
         image, _, _ = prepare_image(case["image"], case["tumorMask"], image_size=image_size)
         label = one_hot_labels(np.asarray([row.class_index], dtype=np.int64))[0]
         yield image, label
