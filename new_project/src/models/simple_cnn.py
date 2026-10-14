@@ -1,10 +1,7 @@
-"""Simple CNN extracted from ``notebooks/04_simple_cnn.ipynb``."""
-
 import tensorflow as tf
 
 
 def build_simple_cnn(image_size=224, learning_rate=1e-3):
-    """Build and compile the notebook's six-convolution CNN from scratch."""
     inputs = tf.keras.Input((image_size, image_size, 3))
     x = inputs
 

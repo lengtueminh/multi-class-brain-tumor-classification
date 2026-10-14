@@ -20,13 +20,14 @@ REQUIRED_INVENTORY_COLUMNS = {"class_index", "patient_id"}
 
 
 def _scalar(value: Any) -> Any:
-    """Remove MATLAB singleton dimensions and return a Python scalar when possible."""
+    """MATLAB mặc định tất cả là arr cả kể số nguyên vd [[1]] --> bỏ chiều thừa"""
     array = np.asarray(value).squeeze()
     return array.item() if array.size == 1 else array
 
 
 def decode_patient_id(value: Any) -> str:
-    """Convert MATLAB's numeric character vector for ``PID`` into readable text."""
+    """Decode dạng num về số đúng. MATLAB đôi khi lưu qua
+    Unicode --> đổi về dạng chuỗi """
     array = np.asarray(value).squeeze()
     if array.dtype.kind in {"i", "u"}:
         return "".join(chr(int(item)) for item in array)
@@ -34,22 +35,24 @@ def decode_patient_id(value: Any) -> str:
 
 
 def canonicalize_patient_id(value: Any) -> str:
-    """Return one stable patient identifier for MATLAB and CSV representations."""
-    if isinstance(value, str):
-        numbers = re.findall(r"\d+", value)
-        if value.strip().startswith("[") and numbers:
+    """Xử lý nhiều dạng id khác nhau ko chỉ có num"""
+    if isinstance(value, str): # nếu là num thì cho sang decode --> chuỗi thì check dạng
+        numbers = re.findall(r"\d+", value) # tìm các số
+        if value.strip().startswith("[") and numbers: # nếu bắt đầu bằng [ thì có thể là mảng bị chuyển về str
             return decode_patient_id(np.asarray([int(item) for item in numbers], dtype=np.int64))
         return value.strip()
     return decode_patient_id(value)
 
 
 def prepare_inventory(inventory: pd.DataFrame) -> pd.DataFrame:
-    """Validate and normalize an EDA inventory before splitting it."""
+    """Kiểm tra, chuẩn hóa trước khi chia
+    File inven gồm: file, pid, class_id -> output sau eda"""
     missing = REQUIRED_INVENTORY_COLUMNS - set(inventory.columns)
     if missing:
         raise ValueError(f"inventory is missing columns: {sorted(missing)}")
 
     result = inventory.copy()
+    #chuẩn hóa pid, chuyển nhãn thành int và check có hợp lệ ko vd 3 4 5 --> ko
     result["patient_id"] = result["patient_id"].map(canonicalize_patient_id)
     result["class_index"] = pd.to_numeric(result["class_index"], errors="raise").astype(int)
     if not result["class_index"].isin(CLASS_INDEX_TO_NAME).all():
@@ -57,17 +60,17 @@ def prepare_inventory(inventory: pd.DataFrame) -> pd.DataFrame:
     if result["patient_id"].eq("").any():
         raise ValueError("inventory contains an empty patient id")
     patient_classes = result.groupby("patient_id")["class_index"].nunique()
-    if (patient_classes > 1).any():
+    if (patient_classes > 1).any(): # check 1 bn có nh hơn 1 class k
         raise ValueError("a patient is assigned to more than one class")
     if "file" in result and result["file"].duplicated().any():
         raise ValueError("inventory contains duplicate file paths")
-    if "class_name" in result:
+    if "class_name" in result: # xem class name có khớp vs id ko 
         result["class_name"] = result["class_index"].map(CLASS_INDEX_TO_NAME)
     return result
 
 
 def load_case(path: Path) -> dict[str, np.ndarray]:
-    """Load one MATLAB v5 or v7.3 case.
+    """Load one MATLAB v5 or v7.3 case --> đọc field quan trọng.
 
     SciPy reads classic MATLAB files, while MATLAB v7.3 files are HDF5 files
     and therefore require ``h5py``. Both readers are normalized to the same
@@ -119,17 +122,17 @@ def crop_brain(image: np.ndarray, mask: np.ndarray) -> tuple[np.ndarray, np.ndar
         raise ValueError("image and mask must be 2D arrays with identical shapes")
 
     image_float = image_array.astype(np.float32)
-    maximum = float(np.max(image_float))
-    if maximum <= 0:
+    maximum = float(np.max(image_float)) # tìm gt max để đưa ảnh về binary: sáng tối
+    if maximum <= 0: # ko có gt dương thì thôi pass ko crop
         height, width = image_array.shape
         return image_array, mask_array, (0, 0, width, height)
 
     # Use a relative threshold because raw MRI intensity ranges differ by image.
-    threshold = np.uint8(image_float > maximum * 0.05) * 255
-    kernel = np.ones((5, 5), dtype=np.uint8)
+    threshold = np.uint8(image_float > maximum * 0.05) * 255 # dùng threshold 5% chia sáng tối
+    kernel = np.ones((5, 5), dtype=np.uint8) # tạo kernel để thực hiện phép morph closing
     # Close small holes and gaps before searching for the brain contour.
-    foreground = cv2.morphologyEx(threshold, cv2.MORPH_CLOSE, kernel)
-    contours, _ = cv2.findContours(foreground, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    foreground = cv2.morphologyEx(threshold, cv2.MORPH_CLOSE, kernel) # thực hiện dilation + erosion lấp lỗ
+    contours, _ = cv2.findContours(foreground, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE) # láy đường biên lớn nhaât
     if not contours:
         height, width = image_array.shape
         return image_array, mask_array, (0, 0, width, height)
@@ -143,7 +146,7 @@ def prepare_image(
     mask: np.ndarray,
     image_size: int = 224,
 ) -> tuple[np.ndarray, np.ndarray, tuple[int, int, int, int]]:
-    """Prepare one sample for CNN input.
+    """Crop + resize + chuyển về float + [0,1] + trả ảnh rgb 3 channel thay vì gray
 
     The image is cropped, resized, converted to ``float32``, normalized
     per image to ``[0, 1]``, and replicated across three channels. The mask
@@ -153,6 +156,7 @@ def prepare_image(
     # Area interpolation is suitable for shrinking continuous-valued images.
     resized_image = cv2.resize(cropped_image, (image_size, image_size), interpolation=cv2.INTER_AREA)
     # Nearest-neighbor interpolation prevents fractional mask labels.
+    # resize --> ước lượng pixel mới trên pixel gần nhất
     resized_mask = cv2.resize(cropped_mask, (image_size, image_size), interpolation=cv2.INTER_NEAREST)
     image_float = resized_image.astype(np.float32)
     minimum, maximum = float(image_float.min()), float(image_float.max())
@@ -170,11 +174,10 @@ def build_patient_level_split(
     validation_ratio: float = 0.15,
     test_ratio: float = 0.15,
 ) -> pd.DataFrame:
-    """Create deterministic train/validation/test assignments at patient level.
+    """Create train/validation/test assignments at patient level
 
     Patients are shuffled independently inside each class, then all images
-    belonging to a patient receive the same split. This prevents slices from
-    one patient leaking across train, validation, and test.
+    belonging to a patient receive the same split.
     """
     ratios = (train_ratio, validation_ratio, test_ratio)
     if any(ratio <= 0 for ratio in ratios) or not np.isclose(sum(ratios), 1.0):
@@ -248,11 +251,6 @@ def save_split_manifest(
 
 
 def one_hot_labels(class_indices: np.ndarray, num_classes: int = 3) -> np.ndarray:
-    """Convert class indices into fixed-width categorical vectors.
-
-    For three classes, indices ``0``, ``1``, and ``2`` become
-    ``[1, 0, 0]``, ``[0, 1, 0]``, and ``[0, 0, 1]`` respectively.
-    """
     indices = np.asarray(class_indices, dtype=np.int64).reshape(-1, 1)
     if np.any((indices < 0) | (indices >= num_classes)):
         raise ValueError("class index outside the configured range")
