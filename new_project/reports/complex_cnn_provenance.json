@@ -1,0 +1,10 @@
+{
+  "source_notebook": "notebooks/model_complex_cnn.ipynb",
+  "original_run": "complex_cnn_bn_baseline_seed42_20261010_130003_838686",
+  "completed_epochs": 90,
+  "best_epoch": 84,
+  "selection_metric": "val_loss",
+  "checkpoint_sha256": "e0779c2e8dec230cbb070df8aa2534d3b55b00614328aa6828f2f665c2f389c4",
+  "note": "Original checkpoint preserved byte for byte. Final metrics and learning curves retained; per-epoch diagnostics removed. Metrics model_name normalized to complex_cnn.",
+  "original_source_notebook": "notebooks/complexmodel_batchnorm_baseline_seed42.ipynb"
+}
