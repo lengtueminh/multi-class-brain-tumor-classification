@@ -170,11 +170,10 @@ def build_patient_level_split(
     validation_ratio: float = 0.15,
     test_ratio: float = 0.15,
 ) -> pd.DataFrame:
-    """Create deterministic train/validation/test assignments at patient level.
+    """Create train/validation/test assignments at patient level
 
     Patients are shuffled independently inside each class, then all images
-    belonging to a patient receive the same split. This prevents slices from
-    one patient leaking across train, validation, and test.
+    belonging to a patient receive the same split.
     """
     ratios = (train_ratio, validation_ratio, test_ratio)
     if any(ratio <= 0 for ratio in ratios) or not np.isclose(sum(ratios), 1.0):
@@ -248,11 +247,6 @@ def save_split_manifest(
 
 
 def one_hot_labels(class_indices: np.ndarray, num_classes: int = 3) -> np.ndarray:
-    """Convert class indices into fixed-width categorical vectors.
-
-    For three classes, indices ``0``, ``1``, and ``2`` become
-    ``[1, 0, 0]``, ``[0, 1, 0]``, and ``[0, 0, 1]`` respectively.
-    """
     indices = np.asarray(class_indices, dtype=np.int64).reshape(-1, 1)
     if np.any((indices < 0) | (indices >= num_classes)):
         raise ValueError("class index outside the configured range")

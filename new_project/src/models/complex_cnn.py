@@ -1,9 +1,3 @@
-"""Selected BatchNorm Sequential-Parallel CNN; 456,755 parameters.
-
-Configure the Keras backend and precision before calling build_complex_cnn.
-The notebook contains the same model definition for standalone inspection.
-"""
-
 import keras
 from keras import layers
 
@@ -26,7 +20,7 @@ def mbconv_block(x, name, bn_momentum=0.9, norm_epsilon=1e-3):
 def build_complex_cnn(decay_steps, learning_rate=2e-4, min_learning_rate=1e-6,
                     image_size=224, bn_momentum=0.9, dropout_rate=0.2,
                     accumulation_steps=4, norm_epsilon=1e-3):
-    """Build and compile the two-branch CNN in one function."""
+    """Build and compile the two-branch CNN."""
     inputs = keras.Input(shape=(image_size, image_size, 3), name="input_image")
 
     sequential = layers.Conv2D(32, 3, padding="same", use_bias=False, name="seq1_conv")(inputs)
@@ -42,7 +36,7 @@ def build_complex_cnn(decay_steps, learning_rate=2e-4, min_learning_rate=1e-6,
     sequential = layers.BatchNormalization(momentum=bn_momentum, epsilon=norm_epsilon, name="seq3_bn")(sequential)
     sequential = layers.Activation("relu", name="seq3_relu")(sequential)
     sequential = layers.MaxPooling2D(2, name="seq3_pool")(sequential)
-    # The parallel branch uses three different kernel sizes to capture multi-scale features.
+    # parallel branch uses 3 different kernel sizes to capture multi-scale features
     branches = []
     for kernel_size in (1, 3, 5):
         branch = layers.Conv2D(16, kernel_size, padding="same", use_bias=False,

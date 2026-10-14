@@ -1,21 +1,12 @@
-"""EfficientNetB2 extracted from ``notebooks/03_transfer_efficientnetb2.ipynb``."""
-
 import tensorflow as tf
-
 
 @tf.keras.utils.register_keras_serializable(package="brain_tumor")
 def to_255(image):
-    """Named equivalent of the notebook lambda, allowing safe checkpoint reloads."""
+    """Nhân với 255 để đua về [0,255]"""
     return image * 255.0
 
 
 def build_transfer_efficientnetb2(image_size=240, num_classes=3, weights="imagenet"):
-    """Build and compile the notebook model with its entire backbone trainable.
-
-    Inputs are normalized to [0, 1] by the data loader, then scaled to [0, 255]
-    before EfficientNet's built-in preprocessing. ``weights=None`` allows
-    building without downloading pretrained weights.
-    """
     inputs = tf.keras.Input(shape=(image_size, image_size, 3))
     x = tf.keras.layers.Lambda(to_255, name="to_255")(inputs)
     backbone = tf.keras.applications.EfficientNetB2(
